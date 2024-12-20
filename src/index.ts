@@ -1,1 +1,1 @@
-export { dataRequirements } from "./data-requirements";
+export { dataRequirements } from './dataRequirements';

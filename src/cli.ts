@@ -1,6 +1,6 @@
 #! node
 import { Command } from 'commander';
-import { cliDataRequirements } from './data-requirements';
+import { cliDataRequirements } from './dataRequirements';
 
 const program = new Command();
 program.name('fqm-bulk-utils').description('FQM Bulk Utils');
