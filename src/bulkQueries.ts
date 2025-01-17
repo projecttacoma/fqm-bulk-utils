@@ -21,7 +21,7 @@ export async function cliBulkQueries(filePath: string) {
 }
 
 /**
- * Generates a
+ * Generates the queries that would come after a bulk "$export?""
  */
 export async function bulkQueries(bundle: fhir4.Bundle) {
   // simple approach...
@@ -34,26 +34,6 @@ export async function bulkQueries(bundle: fhir4.Bundle) {
   // Make sure to also include a _type query for all resource types needed
 
   const dataRequirements: DRCalculationOutput = await Calculator.calculateDataRequirements(bundle);
-
-  // // Test
-  // const dataRequirements = {results: {
-  //   dataRequirement:
-  //   [{
-  //     type: "Observation",
-  //     codeFilter: [
-  //         {
-  //             path: "code",
-  //             code: [
-  //                 {
-  //                     system: "http://loinc.org",
-  //                     display: "Hospice care [Minimum Data Set]",
-  //                     code: "45755-6"
-  //                 }
-  //             ]
-  //         }
-  //     ]
-  // }
-  // ]}}; // -> _typeFilter=Observation%3Fcode%3D45755-6&_type=Observation
 
   // create record resourcetype => [] of valid typeFilter query strings that will be &-ed as ORs
   const typeFilters: Record<string, string[] | undefined> = {};
@@ -76,8 +56,7 @@ export async function bulkQueries(bundle: fhir4.Bundle) {
     }
   });
 
-  //collate the types and typeFilters into the full url-encoded string that will come after our "$export?"
-  // QUESTION: This encodes the comma separating the code values (I assume that is correct, but we don't seem to support it in our server)
+  //collate the types and typeFilters into the full string that will come after our "$export?"
   const typeQuery = `_type=${Object.keys(typeFilters).join(',')}`; // Example value: _type=Procedure,Encounter
   const typeFilterQueries = Object.keys(typeFilters)
     .map(resourceType => {
