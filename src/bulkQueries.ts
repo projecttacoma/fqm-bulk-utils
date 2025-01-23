@@ -21,21 +21,21 @@ export async function cliBulkQueries(filePath: string) {
 }
 
 /**
- * Generates the queries that would come after a bulk "$export?""
+ * Generates the queries that would come after a bulk "$export?"
  */
 export async function bulkQueries(bundle: fhir4.Bundle) {
   // simple approach...
   // If there's a codeFilter with a direct code, create a typeFilter for that code
   // If the codeFilter doesn't have a code (valueset or some other specification), create a generic _type query instead
-  // This _type query should supercede all other potential narrowing that's found on that resource
+  // This _type query should supercede all other potential narrowing data requirements that are found on that resource
   // If we can narrow:
   // Within the same DR codeFilter list, typeFilters should be ANDed (i.e. _typeFilter=A,B)
-  // Across different DR's, typeFilters should be ORd (i.e.  _typeFilter=A&_typeFilter=B)
+  // Across different DRs, typeFilters should be ORed (i.e. _typeFilter=A&_typeFilter=B)
   // Make sure to also include a _type query for all resource types needed
 
   const dataRequirements: DRCalculationOutput = await Calculator.calculateDataRequirements(bundle);
 
-  // create record resourcetype => [] of valid typeFilter query strings that will be &-ed as ORs
+  // create record resourcetype => [] of valid typeFilter query strings that will be separated by "&" and logically handled as ORs
   const typeFilters: Record<string, string[] | undefined> = {};
   dataRequirements.results.dataRequirement?.forEach(dr => {
     //empty array is general _type query that overrides a more specific _typeFilter
@@ -47,7 +47,7 @@ export async function bulkQueries(bundle: fhir4.Bundle) {
       return;
     }
     //all codefilters have a path and proper code and can be added to our typefilter array
-    const fhirQueries = dr.codeFilter?.map(cf => `${cf.path}=${cf.code?.map(coding => coding.code).join(',')}`); // potential multiple codes are comma-separated to be OR'd for this path
+    const fhirQueries = dr.codeFilter?.map(cf => `${cf.path}=${cf.code?.map(coding => coding.code).join(',')}`); // potential multiple codes are comma-separated to be ORed for this path
     const tfStr = `${dr.type}?${fhirQueries?.join('&')}`; //Example value: 'Procedure?code=1,2&category=3,4'
     if (typeFilters[dr.type]) {
       typeFilters[dr.type]?.push(tfStr);
@@ -63,7 +63,7 @@ export async function bulkQueries(bundle: fhir4.Bundle) {
       // array of all typefilters for this resource type
       const bulkQueryArr = typeFilters[resourceType]?.map(tf => `_typeFilter=${encodeURIComponent(tf)}`);
       // join to create params for a single resource
-      // Example value: _typeFilter=Procedure%3Fcode%3D1%2C2%26category%3D3%2C4)&_typeFilter=Procedure%3Fcode%3D5
+      // Example value: _typeFilter=Procedure%3Fcode%3D1%2C2%26category%3D3%2C4&_typeFilter=Procedure%3Fcode%3D5
       return bulkQueryArr?.join('&') ?? '';
     })
     .filter(query => query !== '');
