@@ -11,6 +11,7 @@ import {
   NotNullFilter,
   ValueFilter
 } from 'fqm-execution/build/types/QueryFilterTypes';
+import { ExpressionSearchMap } from 'fhir-spec-tools/build/data/expressionSearchParameters';
 
 /**
  * Loads file from cli input to calculate group from the file
@@ -66,7 +67,7 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
       }
     }
     if (dtq.queryInfo?.filter) {
-      queryList.push(...queriesForFilter(dtq.queryInfo.filter));
+      queryList.push(...queriesForFilter(dtq.queryInfo.filter, dtq.dataType));
     }
     const baseQuery = `${dtq.dataType}`;
     if (queryList.length === 0) {
@@ -99,47 +100,57 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
 }
 
 // Generates an array of fhir query strings that correspond with the passed filter and all children
-function queriesForFilter(filter: AnyFilter): string[] {
-  // how do we even know we're dealing with a search parameter?
-  // TODO: (fhir-spec-tools needs added functionality) **path expression needs to be converted to the search parameter
-
+function queriesForFilter(filter: AnyFilter, dataType: string): string[] {
   let typedFilter;
+  let param;
   switch (filter.type) {
     case 'and':
-      return (filter as AndFilter).children.flatMap(c => queriesForFilter(c));
+      return (filter as AndFilter).children.flatMap(c => queriesForFilter(c, dataType));
     case 'in':
       typedFilter = filter as InFilter;
+      param = ExpressionSearchMap[`${dataType}.${typedFilter.attribute}`];
+      if (!param) return []; //not a searchable expression
       if (typedFilter.valueCodingList) {
         // technically the code could be undefined, but eh
-        return [`${typedFilter.attribute}=${typedFilter.valueCodingList.map(c => c.code).join(',')}`];
+        return [`${param}=${typedFilter.valueCodingList.map(c => c.code).join(',')}`];
       }
       if (typedFilter.valueList) {
-        return [`${typedFilter.attribute}=${typedFilter.valueList.join(',')}`];
+        return [`${param}=${typedFilter.valueList.join(',')}`];
       }
       return [];
     case 'during':
       // CQL spec indicates synonymous with IncludedIn: if the first operand is completely included in the second
       // assume exclusive for dates?
       typedFilter = filter as DuringFilter;
+      param = ExpressionSearchMap[`${dataType}.${typedFilter.attribute}`];
+      if (!param) return []; //not a searchable expression
       // eslint-disable-next-line no-case-declarations
       const durationQueries = [];
       typedFilter.valuePeriod.start;
       if (typedFilter.valuePeriod.start) {
-        durationQueries.push(`${typedFilter.attribute}=gt${typedFilter.valuePeriod.start}`);
+        durationQueries.push(`${param}=gt${typedFilter.valuePeriod.start}`);
       }
       if (typedFilter.valuePeriod.end) {
-        durationQueries.push(`${typedFilter.attribute}=lt${typedFilter.valuePeriod.end}`);
+        durationQueries.push(`${param}=lt${typedFilter.valuePeriod.end}`);
       }
       return durationQueries;
     case 'isnull':
-      return [`${(filter as IsNullFilter).attribute}:missing=true`];
+      typedFilter = filter as IsNullFilter;
+      param = ExpressionSearchMap[`${dataType}.${typedFilter.attribute}`];
+      if (!param) return []; //not a searchable expression
+      return [`${param}:missing=true`];
     case 'notnull':
-      return [`${(filter as NotNullFilter).attribute}:missing=false`];
+      typedFilter = filter as NotNullFilter;
+      param = ExpressionSearchMap[`${dataType}.${typedFilter.attribute}`];
+      if (!param) return []; //not a searchable expression
+      return [`${param}:missing=false`];
     case 'equals':
       typedFilter = filter as EqualsFilter;
-      return [`${typedFilter.attribute}=${typedFilter.value}`];
+      param = ExpressionSearchMap[`${dataType}.${typedFilter.attribute}`];
+      if (!param) return []; //not a searchable expression
+      return [`${param}=${typedFilter.value}`];
     case 'value':
-      return valueQueries(filter as ValueFilter);
+      return valueQueries(filter as ValueFilter, dataType);
     default:
       //or, truth, unknown, whatever other type
       console.warn(`Ignoring "${filter.type}" filter`);
@@ -147,18 +158,21 @@ function queriesForFilter(filter: AnyFilter): string[] {
   }
 }
 
-function valueQueries(filter: ValueFilter): string[] {
+function valueQueries(filter: ValueFilter, dataType: string): string[] {
+  const param = ExpressionSearchMap[`${dataType}.${filter.attribute}`];
+  if (!param) return []; //not a searchable expression
+
   // Search prefixes are available for numbers, dates, and quantities https://hl7.org/fhir/R4/search.html#prefix
   // For boolean and string, only allow equal
   if (filter.valueBoolean !== undefined) {
     if (filter.comparator === 'eq') {
-      return [`${filter.attribute}=${filter.valueBoolean}`];
+      return [`${param}=${filter.valueBoolean}`];
     }
     return [];
   }
   if (filter.valueString !== undefined) {
     if (filter.comparator === 'eq') {
-      return [`${filter.attribute}=${filter.valueString}`];
+      return [`${param}=${filter.valueString}`];
     }
     return [];
   }
@@ -167,14 +181,14 @@ function valueQueries(filter: ValueFilter): string[] {
     if (filter.comparator === 'sa' || filter.comparator === 'eb') {
       return [];
     } else {
-      return [`${filter.attribute}=${filter.comparator}${filter.valueString}`];
+      return [`${param}=${filter.comparator}${filter.valueString}`];
     }
   }
   // quantity [parameter]=[prefix][number]|[system]|[code]
   if (filter.valueQuantity !== undefined && filter.valueQuantity.value !== undefined) {
     const systemStr = filter.valueQuantity.system !== undefined ? `|${filter.valueQuantity.system}` : '';
     const codeStr = filter.valueQuantity.code !== undefined ? `|${filter.valueQuantity.code}` : '';
-    return [`${filter.attribute}=${filter.comparator}${filter.valueQuantity.value}${systemStr}${codeStr}`];
+    return [`${param}=${filter.comparator}${filter.valueQuantity.value}${systemStr}${codeStr}`];
   }
 
   // translate to a quantity to create a query
@@ -194,7 +208,7 @@ function valueQueries(filter: ValueFilter): string[] {
       filter.valueRatio.denominator.code !== undefined ? `|${filter.valueRatio.denominator.code}` : '';
     if (numeratorSystemStr === denominatorSystemStr && numeratorCodeStr === denominatorCodeStr) {
       const ratioNumber = filter.valueRatio.numerator.value / filter.valueRatio.denominator.value;
-      return [`${filter.attribute}=${filter.comparator}${ratioNumber}${numeratorSystemStr}${numeratorCodeStr}`];
+      return [`${param}=${filter.comparator}${ratioNumber}${numeratorSystemStr}${numeratorCodeStr}`];
     }
     return [];
   }
@@ -211,12 +225,12 @@ function valueQueries(filter: ValueFilter): string[] {
       if (filter.valueRange.low !== undefined) {
         const systemStr = filter.valueRange.low.system !== undefined ? `|${filter.valueRange.low.system}` : '';
         const codeStr = filter.valueRange.low.code !== undefined ? `|${filter.valueRange.low.code}` : '';
-        rangeQueries.push(`${filter.attribute}=ge${filter.valueRange.low}${systemStr}${codeStr}`);
+        rangeQueries.push(`${param}=ge${filter.valueRange.low}${systemStr}${codeStr}`);
       }
       if (filter.valueRange.high !== undefined) {
         const systemStr = filter.valueRange.high.system !== undefined ? `|${filter.valueRange.high.system}` : '';
         const codeStr = filter.valueRange.high.code !== undefined ? `|${filter.valueRange.high.code}` : '';
-        rangeQueries.push(`${filter.attribute}=le${filter.valueRange.high}${systemStr}${codeStr}`);
+        rangeQueries.push(`${param}=le${filter.valueRange.high}${systemStr}${codeStr}`);
       }
     } else if (filter.comparator === 'gt') {
       // the range above the search value intersects (i.e. overlaps) with the range of the target value
