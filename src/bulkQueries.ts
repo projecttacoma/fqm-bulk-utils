@@ -42,7 +42,7 @@ export async function bulkQueries(bundle: fhir4.Bundle) {
     if (typeFilters[dr.type]?.length === 0) return;
 
     //any codeFilter that's non-coded or no-path or any contained codings have no code -> results in a general _type query
-    if (dr.codeFilter?.find(cf => !cf.code || !cf.path || cf.code.find(coding => !coding.code))) {
+    if (dr.codeFilter?.some(cf => !cf.code || !cf.path || cf.code.some(coding => !coding.code))) {
       typeFilters[dr.type] = [];
       return;
     }
