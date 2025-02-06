@@ -43,7 +43,6 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
     | undefined;
 
   if (!measure?.group?.length || measure.group.length < 1) {
-    // TODO: make errors better
     throw Error('measure does not define any groups');
   }
   const ipp = measure.group[0].population?.find(p => p.code?.coding?.some(c => c.code === 'initial-population'));
@@ -54,6 +53,8 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
 
   const output = await Calculator.calculateQueryInfo(bundle, { focusedStatement: expression });
   // example expression: 'Condition?category=http://terminology.hl7.org/CodeSystem/condition-category|problem-list-item&clinical-status=http://terminology.hl7.org/CodeSystem/condition-clinical|active&code=http://hl7.org/fhir/sid/icd-10-cm|E11.9'
+  // from https://build.fhir.org/ig/HL7/bulk-data/branches/argo24/Group-BulkCohortGroupExample.json.html
+ 
   // new expression for each retrieve
   const expresionArr = output.results.map(dtq => {
     const queryList: string[] = [];
@@ -61,8 +62,8 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
       if (dtq.valueSet) {
         queryList.push(`${dtq.path}:in=${dtq.valueSet}`);
       }
-      // TODO: can both valueSet and code exist? (I don't think so... but double check)
-      if (dtq.code) {
+      // does not handle both valueSet and code at the same time if they can coexist
+      else if (dtq.code) {
         queryList.push(`${dtq.path}=${dtq.code.system}|${dtq.code.code}`);
       }
     }
@@ -213,8 +214,8 @@ function valueQueries(filter: ValueFilter, dataType: string): string[] {
     return [];
   }
 
-  // Unsure of how to express an explicit range in the query
-  // Instead, use table at https://hl7.org/fhir/R4/search.html#prefix
+  // How should one express an explicit range in the query?
+  // Lacking that, use table at https://hl7.org/fhir/R4/search.html#prefix
   // target is the thing you're looking for while searching
   // and search value is the value passed to the query parameter
   if (filter.valueRange !== undefined) {
