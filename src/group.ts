@@ -56,7 +56,7 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
   // from https://build.fhir.org/ig/HL7/bulk-data/branches/argo24/Group-BulkCohortGroupExample.json.html
  
   // new expression for each retrieve
-  const expresionArr = output.results.map(dtq => {
+  const expressionArr = output.results.map(dtq => {
     const queryList: string[] = [];
     if (dtq.path) {
       if (dtq.valueSet) {
@@ -78,7 +78,7 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
   });
 
   // format as modifier extensions
-  const modifierArr: fhir4.Extension[] = expresionArr.map(exp => {
+  const modifierArr: fhir4.Extension[] = expressionArr.map(exp => {
     return {
       url: 'http://hl7.org/fhir/uv/bulkdata/StructureDefinition/member-filter',
       valueExpression: {
@@ -159,6 +159,7 @@ function queriesForFilter(filter: AnyFilter, dataType: string): string[] {
   }
 }
 
+// Generates an array of fhir query strings for a passed valueFilter
 function valueQueries(filter: ValueFilter, dataType: string): string[] {
   const param = ExpressionSearchMap[`${dataType}.${filter.attribute}`];
   if (!param) return []; //not a searchable expression
