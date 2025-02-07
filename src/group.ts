@@ -54,7 +54,7 @@ export async function group(bundle: fhir4.Bundle): Promise<fhir4.Group> {
   const output = await Calculator.calculateQueryInfo(bundle, { focusedStatement: expression });
   // example expression: 'Condition?category=http://terminology.hl7.org/CodeSystem/condition-category|problem-list-item&clinical-status=http://terminology.hl7.org/CodeSystem/condition-clinical|active&code=http://hl7.org/fhir/sid/icd-10-cm|E11.9'
   // from https://build.fhir.org/ig/HL7/bulk-data/branches/argo24/Group-BulkCohortGroupExample.json.html
- 
+
   // new expression for each retrieve
   const expressionArr = output.results.map(dtq => {
     const queryList: string[] = [];
@@ -127,7 +127,6 @@ function queriesForFilter(filter: AnyFilter, dataType: string): string[] {
       if (!param) return []; //not a searchable expression
       // eslint-disable-next-line no-case-declarations
       const durationQueries = [];
-      typedFilter.valuePeriod.start;
       if (typedFilter.valuePeriod.start) {
         durationQueries.push(`${param}=gt${typedFilter.valuePeriod.start}`);
       }
@@ -194,11 +193,7 @@ function valueQueries(filter: ValueFilter, dataType: string): string[] {
   }
 
   // translate to a quantity to create a query
-  if (
-    filter.valueRatio !== undefined &&
-    filter.valueRatio.numerator?.value !== undefined &&
-    filter.valueRatio.denominator?.value !== undefined
-  ) {
+  if (filter.valueRatio?.numerator?.value !== undefined && filter.valueRatio.denominator?.value !== undefined) {
     // make sure numerator and denominator are comparable
     const numeratorSystemStr =
       filter.valueRatio.numerator.system !== undefined ? `|${filter.valueRatio.numerator.system}` : '';
