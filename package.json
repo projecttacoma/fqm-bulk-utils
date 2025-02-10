@@ -15,7 +15,6 @@
     "prettier:fix": "prettier . --write",
     "check": "npm run lint && npm run prettier"
   },
-  "type": "commonjs",
   "devDependencies": {
     "@eslint/js": "^9.4.0",
     "@types/eslint__js": "^8.42.3",
@@ -29,7 +28,8 @@
   },
   "dependencies": {
     "commander": "^12.1.0",
-    "fqm-execution": "^1.6.0",
+    "fhir-spec-tools": "^0.3.0",
+    "fqm-execution": "^1.7.0-beta1",
     "ts-node": "^10.9.2"
   }
 }
