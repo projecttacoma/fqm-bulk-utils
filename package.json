@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "description": "FQM Bulk Utils",
   "main": "build/index.js",
+  "files": [
+    "build/*.js",
+    "build/*.d.ts"
+  ],
   "types": "build/index.d.ts",
   "bin": {
     "fqm-bulk-utils": "build/cli.js"
